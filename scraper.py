@@ -5,11 +5,19 @@ import google.generativeai as genai
 from googleapiclient.discovery import build
 import json
 
+import requests
+
+
 load_dotenv()
 
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 VIDEO_ID = os.environ.get("VIDEO_ID")
+
+
+# WEBHOOK_URL = os.environ.get("WEBHOOK_URL_TEST")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL_PROD")
+
 
 # ==========================================
 # FUNGSI 1: MENGAMBIL KOMENTAR YOUTUBE
@@ -88,3 +96,36 @@ if __name__ == "__main__":
         print(json.dumps(results, indent=4))
     else:
         print("[!] Tidak ada komentar yang ditemukan.")
+        
+
+
+if __name__ == "__main__":
+    raw_comments = get_youtube_comments(VIDEO_ID, YOUTUBE_API_KEY)
+    
+    if raw_comments:
+        print(f"[*] Memulai pengiriman data ke Google Sheets via Webhook...")
+        
+        for comment in raw_comments:
+            # 1. Analisis dengan AI
+            analysis = analyze_sentiment(comment, GEMINI_API_KEY)
+            
+            # 2. Siapkan data untuk dikirim
+            payload = {
+                "komentar": comment,
+                "sentimen": analysis.get("sentimen"),
+                "skor": analysis.get("skor"),
+                "alasan": analysis.get("alasan")
+            }
+            
+            # 3. Kirim ke Webhook
+            try:
+                response = requests.post(WEBHOOK_URL, json=payload)
+                if response.status_code == 200:
+                    print(f"[OK] Berhasil mengirim: {analysis.get('sentimen')}")
+                else:
+                    print(f"[!] Gagal mengirim. Status: {response.status_code}")
+            except Exception as e:
+                print(f"[!] Error saat mengirim data: {e}")
+
+        print("-" * 30)
+        print("[FINISH] Semua data telah diproses.")
